@@ -15,6 +15,9 @@
   const callBtn = document.getElementById("callBtn");
   const muteBtn = document.getElementById("muteBtn");
   const keyBtn = document.getElementById("keyBtn");
+  const keyBox = document.getElementById("keyBox");
+  const keyInput = document.getElementById("keyInput");
+  const saveKeyBtn = document.getElementById("saveKeyBtn");
   const orb = document.getElementById("orb");
   const statusText = document.getElementById("statusText");
   const subStatus = document.getElementById("subStatus");
@@ -56,20 +59,34 @@
   }
 
   function updateKeyBadge() {
-    keyBtn.textContent = getApiKey() ? "🔑 API Key พร้อม" : "🔑 ใส่ API Key ก่อนโทร";
-  }
-
-  function promptApiKey() {
-    const val = window.prompt(
-      "วาง Gemini API Key ของคุณ (เก็บไว้เฉพาะในมือถือเครื่องนี้เท่านั้น):",
-      getApiKey()
-    );
-    if (val !== null) {
-      localStorage.setItem(STORAGE_KEY_API, val.trim());
-      updateKeyBadge();
+    const hasKey = Boolean(getApiKey());
+    keyBtn.textContent = hasKey ? "🔑 API Key พร้อม" : "🔑 ใส่ API Key ก่อนโทร";
+    if (!hasKey) {
+      keyBox.classList.add("open");
     }
   }
-  keyBtn.addEventListener("click", promptApiKey);
+
+  function toggleKeyBox(forceOpen) {
+    if (forceOpen === true) keyBox.classList.add("open");
+    else keyBox.classList.toggle("open");
+    if (keyBox.classList.contains("open")) {
+      keyInput.value = getApiKey();
+      keyInput.focus();
+    }
+  }
+
+  keyBtn.addEventListener("click", () => toggleKeyBox());
+  saveKeyBtn.addEventListener("click", () => {
+    const cleaned = keyInput.value.replace(/\\+$/, "").trim();
+    if (!cleaned) {
+      addLog("error", "กรุณาวาง Gemini API Key ก่อนกดบันทึก");
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY_API, cleaned);
+    keyBox.classList.remove("open");
+    updateKeyBadge();
+    addLog("tool", "✅ บันทึก API Key เรียบร้อยแล้ว กด '📞 โทรหาลูมิน่า' ได้เลยค่ะ!");
+  });
 
   // Tabs
   tabCall.addEventListener("click", () => {
@@ -244,11 +261,11 @@
 
   async function startCall() {
     if (isCalling) return;
-    let apiKey = getApiKey();
+    const apiKey = getApiKey();
     if (!apiKey) {
-      promptApiKey();
-      apiKey = getApiKey();
-      if (!apiKey) return;
+      toggleKeyBox(true);
+      addLog("error", "กรุณาวาง Gemini API Key ในช่องด้านบนแล้วกด 'บันทึก' ก่อนโทรค่ะ");
+      return;
     }
 
     isCalling = true;
