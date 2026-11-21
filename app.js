@@ -387,8 +387,13 @@
         if (sc.turnComplete) lastBubble = { role: null, el: null };
       };
 
-      ws.onclose = () => endCall();
-      ws.onerror = () => addLog("error", "เชื่อมต่อ Gemini ไม่สำเร็จ กรุณาตรวจสอบ API Key");
+      ws.onclose = (ev) => {
+        if (ev.code !== 1000 && ev.code !== 1005) {
+          addLog("error", `สายหลุด (code ${ev.code}${ev.reason ? ": " + ev.reason : ""})`);
+        }
+        endCall();
+      };
+      ws.onerror = () => addLog("error", "เชื่อมต่อ Gemini ไม่สำเร็จ กรุณาตรวจสอบ API Key หรืออินเทอร์เน็ต");
     } catch (err) {
       addLog("error", `เปิดไมโครโฟนหรือเชื่อมต่อไม่สำเร็จ: ${err.message}`);
       endCall();
