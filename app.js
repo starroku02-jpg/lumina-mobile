@@ -46,6 +46,15 @@
     return (localStorage.getItem(STORAGE_KEY_API) || "").trim();
   }
 
+  // รองรับลิงก์ตั้งค่าครั้งเดียวแบบ #key=... (ทำงานเฉพาะในเครื่อง ไม่ส่งขึ้นเซิร์ฟเวอร์ แล้วลบออกจาก URL ทันที)
+  if (location.hash && location.hash.startsWith("#key=")) {
+    const hashKey = decodeURIComponent(location.hash.slice(5)).replace(/\\+$/, "").trim();
+    if (hashKey) {
+      localStorage.setItem(STORAGE_KEY_API, hashKey);
+    }
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+
   function updateKeyBadge() {
     keyBtn.textContent = getApiKey() ? "🔑 API Key พร้อม" : "🔑 ใส่ API Key ก่อนโทร";
   }
