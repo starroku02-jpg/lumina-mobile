@@ -1,0 +1,10 @@
+{
+  "name": "ลูมิน่า (Lumina) — เลขา AI ส่วนตัว",
+  "short_name": "ลูมิน่า",
+  "description": "โทรคุยและสรุปงานกับลูมิน่า (Gemini 3.8 Live) ทำงานบนมือถือ 24 ชม. แม้ปิดคอม",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#0b1120",
+  "orientation": "portrait"
+}
