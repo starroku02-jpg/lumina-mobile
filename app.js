@@ -236,10 +236,12 @@
   }
 
   function playPcm24k(arrayBuffer) {
-    if (!playCtx) playCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+    if (!playCtx) playCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (playCtx.state === "suspended") playCtx.resume();
 
-    const pcm16 = new Int16Array(arrayBuffer);
+    const evenLen = arrayBuffer.byteLength - (arrayBuffer.byteLength % 2);
+    if (evenLen <= 0) return;
+    const pcm16 = new Int16Array(arrayBuffer, 0, evenLen / 2);
     const float32 = new Float32Array(pcm16.length);
     for (let i = 0; i < pcm16.length; i++) float32[i] = pcm16[i] / 32768;
 
@@ -279,17 +281,24 @@
     subStatus.textContent = "เชื่อมต่อตรงไปยัง Gemini 3.8 Live...";
 
     try {
-      playCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      playCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (playCtx.state === "suspended") await playCtx.resume();
       nextPlayTime = playCtx.currentTime;
 
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === "suspended") await audioCtx.resume();
-      await audioCtx.audioWorklet.addModule("./pcm-processor.js");
+      try {
+        mediaStream = await Promise.race([
+          navigator.mediaDevices.getUserMedia({
+            audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("ไมโครโฟนไม่ตอบสนอง")), 6000)),
+        ]);
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") await audioCtx.resume();
+        await audioCtx.audioWorklet.addModule("./pcm-processor.js");
+      } catch (micErr) {
+        mediaStream = null;
+        addLog("error", `⚠️ เปิดไมโครโฟนไม่ได้ (${micErr.message}) — แนะนำเปิดลิงก์นี้ใน Chrome/Safari ปกติ (ตอนนี้ยังพิมพ์คุยและฟังเสียงได้)`);
+      }
 
       const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${encodeURIComponent(apiKey)}`;
       ws = new WebSocket(wsUrl);
@@ -340,23 +349,25 @@
           textInput.disabled = false;
           sendBtn.disabled = false;
 
-          // เริ่มส่งเสียงไมค์
-          const source = audioCtx.createMediaStreamSource(mediaStream);
-          workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
-          workletNode.port.onmessage = (ev) => {
-            if (!isMuted && ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({
-                realtimeInput: {
-                  audio: { mimeType: "audio/pcm;rate=16000", data: arrayBufferToBase64(ev.data) },
-                },
-              }));
-            }
-          };
-          const silentGain = audioCtx.createGain();
-          silentGain.gain.value = 0;
-          source.connect(workletNode);
-          workletNode.connect(silentGain);
-          silentGain.connect(audioCtx.destination);
+          // เริ่มส่งเสียงไมค์ (ถ้าเปิดไมค์สำเร็จ)
+          if (mediaStream && audioCtx) {
+            const source = audioCtx.createMediaStreamSource(mediaStream);
+            workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
+            workletNode.port.onmessage = (ev) => {
+              if (!isMuted && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  realtimeInput: {
+                    audio: { mimeType: "audio/pcm;rate=16000", data: arrayBufferToBase64(ev.data) },
+                  },
+                }));
+              }
+            };
+            const silentGain = audioCtx.createGain();
+            silentGain.gain.value = 0;
+            source.connect(workletNode);
+            workletNode.connect(silentGain);
+            silentGain.connect(audioCtx.destination);
+          }
 
           // ทักทายรับสาย
           ws.send(JSON.stringify({
